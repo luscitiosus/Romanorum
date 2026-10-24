@@ -4,7 +4,7 @@ import re
 import sqlite3
 from pathlib import Path
 
-from refs import fold, key_of, split_ref
+from refs import expand_query, fold, key_of, split_ref
 
 MAX_CHARS = 12000
 
@@ -105,7 +105,7 @@ class Store:
             args += [t.lower() for t in types]
         sql += " ORDER BY score LIMIT ?"
         try:
-            return self.con.execute(sql, [query, *args, limit]).fetchall()
+            return self.con.execute(sql, [expand_query(query), *args, limit]).fetchall()
         except sqlite3.OperationalError:
             # consulta con caracteres que FTS5 no acepta: se entrecomilla cada palabra
             safe = " ".join(f'"{w}"' for w in re.findall(r"\w+\*?", query) if w)

@@ -30,10 +30,12 @@ Consultatio, Codex Theodosianus con su Interpretatio y leyes romano-bárbaras.
 
 Uso recomendado: `citar` cuando el usuario da una cita (D. 1.1.10 pr., Gai. 1.8, I. 2.1.1, \
 C. 4.44.2, CTh. 9.1.1, Nov. 118.1); `buscar` para localizar pasajes por palabras latinas \
-(acepta comodín * , OR y "frases"); `explorar` para ver libros, títulos y rúbricas. \
+(acepta comodín * , OR y "frases"; para buscar por jurista y obra \
+vale «Ulp. 28 ad ed.» con tipos=["Inscriptio"]); `explorar` para ver libros, títulos y rúbricas. \
 Cita siempre el lugar exacto devuelto. No hay traducciones: tradúcelas tú y adviértelo. \
-Para la Ley de las XII Tablas y traducciones, usa `leer_web` con The Roman Law Library \
-(droitromain.univ-grenoble-alpes.fr)."""
+Para la Ley de las XII Tablas usa `leer_web` con https://www.thelatinlibrary.com/12tables.html; \
+para leyes, senadoconsultos y traducciones, The Roman Law Library \
+(droitromain.univ-grenoble-alpes.fr), que a veces no responde."""
 
 # MCP_SECRET convierte la URL en «secreta» (/<secreto>/mcp): sin él, cualquiera
 # que conozca la dirección puede usar el conector.
@@ -107,7 +109,9 @@ def buscar(
         OR, NOT, NEAR(a b, 5) y prefijos con * (p. ej. stipulat* para todas las formas).
     fuentes: abreviaturas o ids para filtrar, p. ej. ["D", "Gai"].
     tipos: tipos de unidad para filtrar, p. ej. ["Inscriptio"] para buscar por jurista y obra
-        de procedencia ("Ulpianus 28 ad ed"), o ["Rubrica"] para buscar títulos.
+        de procedencia, o ["Rubrica"] para buscar títulos. Las cifras de 1 a 99 y las abreviaturas
+        usuales (Ulp., Paul., Pomp., ed., Sab., resp.…) se traducen solas: "Ulp. 28 ad ed."
+        encuentra «Ulpianus libro vicensimo octavo ad edictum».
     limite: número máximo de resultados (máx. 100).
     """
     wids: list[str] | None = None
@@ -170,6 +174,13 @@ ALLOWED_HOSTS = {
 }
 
 
+BROWSER_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (compatible; FontesIurisRomani/1.1; +estudio personal)",
+    "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "es,fr;q=0.8,en;q=0.6,la;q=0.4",
+}
+
+
 class _Text(HTMLParser):
     def __init__(self):
         super().__init__()
@@ -204,11 +215,28 @@ async def leer_web(url: str, desde: int = 0, max_caracteres: int = 15000) -> str
     host = urlparse(url).hostname or ""
     if host not in ALLOWED_HOSTS:
         return f"Dominio no permitido. Permitidos: {', '.join(sorted(ALLOWED_HOSTS))}"
-    async with httpx.AsyncClient(timeout=30, follow_redirects=True,
-                                 headers={"User-Agent": "romanlaw-mcp/1.0 (estudio personal)"}) as c:
-        r = await c.get(url)
+    # algunos sitios universitarios solo responden por http o rechazan clientes sin
+    # cabeceras de navegador; se prueba https y, si falla la conexión, http
+    candidates = [url]
+    if url.startswith("https://"):
+        candidates.append("http://" + url[len("https://"):])
+    elif url.startswith("http://"):
+        candidates.insert(0, "https://" + url[len("http://"):])
+    errors = []
+    r = None
+    async with httpx.AsyncClient(timeout=httpx.Timeout(45, connect=15), follow_redirects=True,
+                                 headers=BROWSER_HEADERS) as c:
+        for cand in candidates:
+            try:
+                r = await c.get(cand)
+                break
+            except httpx.HTTPError as e:
+                errors.append(f"{cand}: {type(e).__name__} {e}".strip())
+    if r is None:
+        return ("No se ha podido conectar con el sitio (" + "; ".join(errors) + "). "
+                "Para la Ley de las XII Tablas prueba https://www.thelatinlibrary.com/12tables.html")
     if r.status_code != 200:
-        return f"Error HTTP {r.status_code} al leer {url}"
+        return f"Error HTTP {r.status_code} al leer {r.url}"
     if urlparse(str(r.url)).hostname not in ALLOWED_HOSTS:
         return "La página redirige a un dominio no permitido."
     p = _Text()
