@@ -21,9 +21,13 @@ class Store:
         return self.con.execute("SELECT * FROM works ORDER BY rowid").fetchall()
 
     def resolve_work(self, name: str) -> list[str]:
+        return sorted({w for w, _ in self.resolve_ref(name)})
+
+    def resolve_ref(self, name: str) -> list[tuple[str, str]]:
+        """Alias -> [(obra, prefijo de clave)]; el prefijo lleva a un libro concreto (Nov. Val. -> libro 2)."""
         a = "".join(re.findall(r"[a-z]+", fold(name)))
-        rows = self.con.execute("SELECT work_id FROM aliases WHERE alias=?", (a,)).fetchall()
-        return [r[0] for r in rows]
+        rows = self.con.execute("SELECT work_id, key_prefix FROM aliases WHERE alias=?", (a,)).fetchall()
+        return [(r[0], r[1] or "") for r in rows]
 
     def work(self, wid: str) -> sqlite3.Row | None:
         return self.con.execute("SELECT * FROM works WHERE id=?", (wid,)).fetchone()
@@ -32,25 +36,34 @@ class Store:
     def find(self, ref: str, work: str | None = None) -> tuple[list[sqlite3.Row], str]:
         """Devuelve los nodos que corresponden a una cita y un mensaje de diagnóstico."""
         prefix, parts = split_ref(ref)
-        wids = self.resolve_work(work) if work else self.resolve_work(prefix) if prefix else []
-        if not wids:
+        targets = self.resolve_ref(work) if work else self.resolve_ref(prefix) if prefix else []
+        wids = sorted({w for w, _ in targets})
+        if not targets:
             known = ", ".join(f"{w['abbr']}" for w in self.works())
             return [], f"No reconozco la obra de «{ref}». Abreviaturas disponibles: {known}"
         if not parts:
             return [], "Indica el lugar (p. ej. D. 1.1.1 pr.)."
         rows: list[sqlite3.Row] = []
-        for wid in wids:
-            # se prueba la cita exacta y, si falla, quitando sufijos finales
-            # (p. ej. «D. 50.17.1 pr» cuando el fragmento no tiene párrafos)
-            cand = list(parts)
-            while cand:
-                hit = self.con.execute(
-                    "SELECT * FROM nodes WHERE work_id=? AND key=? ORDER BY ord", (wid, key_of(cand))
-                ).fetchall()
+        for wid, key_prefix in targets:
+            w = self.work(wid)
+            bases = [key_prefix.split(".") + list(parts) if key_prefix else list(parts)]
+            if w is not None and w["kind"] == "ocr" and w["n_vols"] == 1 and len(parts) == 1:
+                bases.append(["1"] + list(parts))  # «Bruns 120» = tomo único, página 120
+            for base in bases:
+                # se prueba la cita exacta y, si falla, quitando sufijos finales
+                # (p. ej. «D. 50.17.1 pr» cuando el fragmento no tiene párrafos)
+                cand = base
+                hit = []
+                while cand:
+                    hit = self.con.execute(
+                        "SELECT * FROM nodes WHERE work_id=? AND key=? ORDER BY ord", (wid, key_of(cand))
+                    ).fetchall()
+                    if hit:
+                        break
+                    cand = cand[:-1] if not cand[-1].isdigit() or cand[-1] == "0" else []
                 if hit:
                     rows += hit
                     break
-                cand = cand[:-1] if not cand[-1].isdigit() or cand[-1] == "0" else []
         if not rows:
             return [], f"No encuentro «{ref}» en {', '.join(wids)}. Usa `explorar` para ver la numeración."
         return rows, ""
@@ -74,6 +87,10 @@ class Store:
                 label = n["n"]
                 t = n["type"].lower()
                 line = f"[{label}{' · ' + n['type'] if t in ('inscriptio', 'subscriptio', 'rubrica') else ''}] {n['text']}"
+                if n["head"] and t in ("inscripción", "inscripcion"):
+                    line = f"[{label} · {n['head']}] {n['text']}"
+                if n["url"]:
+                    line += f"\n(Imagen/ficha: {n['url']})"
             else:
                 line = f"## {n['n']} {n['head']}".rstrip() if n["head"] else ""
             if line:
@@ -93,7 +110,7 @@ class Store:
     # --- búsqueda --------------------------------------------------------
     def search(self, query: str, works: list[str] | None, types: list[str] | None, limit: int):
         sql = (
-            "SELECT n.*, snippet(nodes_fts, 0, '«', '»', ' … ', 24) AS snip, bm25(nodes_fts) AS score "
+            "SELECT n.*, snippet(nodes_fts, -1, '«', '»', ' … ', 24) AS snip, bm25(nodes_fts, 1.0, 0.4) AS score "
             "FROM nodes_fts JOIN nodes n ON n.rowid = nodes_fts.rowid WHERE nodes_fts MATCH ?"
         )
         args: list = []

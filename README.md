@@ -4,25 +4,23 @@ Servidor MCP que da a Claude acceso al texto latino (y griego) de las fuentes de
 
 ## Qué contiene
 
-Las 18 ediciones digitales de **BIA, Bibliotheca Iuris Antiqui** (IGSG-CNR), publicadas en el repositorio CLARIN-IT con licencia **CC BY-NC-SA 4.0**:
+**Textos críticos** (citables por libro, título, fragmento y párrafo):
+- Las 18 ediciones de **BIA, Bibliotheca Iuris Antiqui** (IGSG-CNR), CC BY-NC-SA 4.0: Digesto, Instituciones, Código, Novelas (con Appendices y XIII Edicta), Gayo, Epitome Gai, Fragmenta Augustodunensia, Tituli Ulpiani, Pauli Sententiae, Fragmenta Vaticana, Collatio, Consultatio, Codex Theodosianus con su Interpretatio, Lex Romana Burgundionum y Edictum Theoderici.
+- De **digilibLT** (CC BY-NC 3.0): las Novelas post-teodosianas (Teodosio II, Valentiniano III, Marciano, Mayoriano, Severo y Antemio), citables como «Nov. Val. 35», y el Codex Euricianus.
 
-| Abrev. | Obra |
-|---|---|
-| D. | Digesta Iustiniani (Mommsen) |
-| I. | Institutiones Iustiniani |
-| C. | Codex Iustinianus (Krüger, 1895) |
-| Nov. · App. Nov. · Ed. Iust. | Novellae, sus Appendices y los XIII Edicta |
-| Gai. · Ep. Gai. · Fr. Aug. | Instituciones de Gayo, Epitome Gai y Fragmenta Augustodunensia |
-| Tit. Ulp. · PS. | Tituli ex corpore Ulpiani, Pauli Sententiae |
-| FV. · Coll. · Cons. | Fragmenta Vaticana, Collatio, Consultatio |
-| CTh. · CTh. int. | Codex Theodosianus (con las Sirmondianas) e Interpretatio |
-| LRB. · Ed. Theod. | Lex Romana Burgundionum, Edictum Theoderici |
+**Ediciones antiguas en dominio público** (texto OCR por páginas, con enlace a la imagen de cada página en archive.org):
+- **GdC**: *Cuerpo del Derecho Civil Romano*, traducción de García del Corral (1889-1898), en 6 tomos con el latín al lado.
+- **Bruns**: *Fontes iuris Romani antiqui* (1909), con XII Tablas, leges, senatus consulta, edicta y negotia.
+- **Theoph.**: la Paráfrasis de Teófilo, en la versión latina de Reitz.
+- **Ep. Iul.**: el Epitome Iuliani de las Novelas.
 
-Lo que BIA no tiene (Ley de las XII Tablas, leyes y senadoconsultos, traducciones) se lee en vivo con la herramienta `leer_web`, limitada a The Roman Law Library de Lassard y Koptev, The Latin Library, Wikisource (la/es), Perseus y LacusCurtius.
+**Epigrafía:** las 81.883 inscripciones latinas de la **Epigraphic Database Heidelberg** (CC BY 4.0, dataset SDAM 2022). Se pueden buscar por texto o por referencia («CIL II 5439»).
+
+**No disponible en abierto:** las Basílicas (la edición digital de Brill es de pago), el Breviario de Alarico como obra autónoma y textos epigráficos recientes como la lex Irnitana, salvo lo que recoja la EDH.
 
 ## Herramientas
 
-- `citar("D. 1.1.10 pr.")`: devuelve el texto de un lugar (párrafo, fragmento, título o libro) con inscriptio y subscriptio. Acepta comas o puntos, «pr.», «Dig.», «Gai.», «CTh.», etc.
+- `citar("D. 1.1.10 pr.")` (también «Nov. Val. 35», «GdC 2.145», «Bruns 120» o «EDH HD022109»): devuelve el texto de un lugar (párrafo, fragmento, título o libro) con inscriptio y subscriptio. Acepta comas o puntos, «pr.», «Dig.», «Gai.», «CTh.», etc.
 - `buscar("stipulat* NEAR(dolo, 10)", fuentes=["D"], tipos=["Inscriptio"])`: búsqueda de texto completo en latín, sin distinguir diacríticos. Con `tipos=["Inscriptio"]` se busca por jurista y obra de procedencia («Ulpianus 28 ad ed»).
 - `explorar("D. 18.1")`: muestra la estructura (libros, títulos con su rúbrica, fragmentos con su inscriptio).
 - `listar_fuentes()`: lista las obras con su edición de base y licencia.

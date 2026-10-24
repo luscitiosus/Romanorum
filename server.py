@@ -22,20 +22,29 @@ DB = Path(os.environ.get("ROMANLAW_DB", Path(__file__).parent / "data" / "romanl
 store = Store(DB)
 
 INSTRUCTIONS = """\
-Fuentes primarias del derecho romano en latín (y griego en Digesto y Novelas), \
-según las ediciones críticas digitalizadas por BIA – Bibliotheca Iuris Antiqui (CNR), \
-licencia CC BY-NC-SA 4.0. Incluye el Corpus Iuris Civilis (Digesto, Instituciones, \
-Código, Novelas), Gayo, Tituli Ulpiani, Pauli Sententiae, Fragmenta Vaticana, Collatio, \
-Consultatio, Codex Theodosianus con su Interpretatio y leyes romano-bárbaras.
+Fuentes del derecho romano, en tres capas:
+1. Textos críticos (latín; griego en Digesto y Novelas): BIA – Bibliotheca Iuris Antiqui (CNR) y \
+digilibLT. Corpus Iuris Civilis (D., I., C., Nov.), Gayo, Tit. Ulp., PS., FV., Coll., Cons., \
+Codex Theodosianus con su Interpretatio, Novelas post-teodosianas (Nov. Theod., Nov. Val., \
+Nov. Marc., Nov. Maior., Nov. Sev., Nov. Anth.), Codex Euricianus, Lex Romana Burgundionum, \
+Edictum Theoderici.
+2. Ediciones antiguas en dominio público escaneadas (OCR, puede tener errores; cada página \
+enlaza a su imagen en archive.org): GdC = traducción española de García del Corral del Corpus \
+Iuris completo (6 tomos, con el latín al lado); Bruns = Fontes iuris Romani antiqui (1909: \
+XII Tablas, leges, senatus consulta, edicta, negotia); Theoph. = Paráfrasis de Teófilo (versión \
+latina); Ep. Iul. = Epitome Iuliani de las Novelas.
+3. EDH: 81.883 inscripciones latinas de la Epigraphic Database Heidelberg (leyes municipales \
+y coloniales de Hispania, senadoconsultos, diplomas…). Se buscan también por referencia \
+bibliográfica ("CIL II 5439", "AE 1986").
 
-Uso recomendado: `citar` cuando el usuario da una cita (D. 1.1.10 pr., Gai. 1.8, I. 2.1.1, \
-C. 4.44.2, CTh. 9.1.1, Nov. 118.1); `buscar` para localizar pasajes por palabras latinas \
-(acepta comodín * , OR y "frases"; para buscar por jurista y obra \
-vale «Ulp. 28 ad ed.» con tipos=["Inscriptio"]); `explorar` para ver libros, títulos y rúbricas. \
-Cita siempre el lugar exacto devuelto. No hay traducciones: tradúcelas tú y adviértelo. \
-Para la Ley de las XII Tablas usa `leer_web` con https://www.thelatinlibrary.com/12tables.html; \
-para leyes, senadoconsultos y traducciones, The Roman Law Library \
-(droitromain.univ-grenoble-alpes.fr), que a veces no responde."""
+Uso: `citar` con la cita (D. 1.1.10 pr., Gai. 1.8, Nov. Val. 35, GdC 2.145 = tomo 2, \
+página 145 del escaneo, EDH HD022109); `buscar` por palabras (comodín *, OR, "frases"; \
+«Ulp. 28 ad ed.» con tipos=["Inscriptio"] busca por jurista y obra; ambito="textos", \
+"ocr" o "inscripciones" acota); `explorar` para ver la estructura. Para la traducción \
+española de un pasaje, busca en GdC las palabras latinas del pasaje (fuentes=["GdC"]) y \
+revisa la página. Cita siempre el lugar exacto devuelto y advierte cuando un texto viene \
+de OCR. Para la Ley de las XII Tablas en texto limpio: `leer_web` con \
+https://www.thelatinlibrary.com/12tables.html."""
 
 # MCP_SECRET convierte la URL en «secreta» (/<secreto>/mcp): sin él, cualquiera
 # que conozca la dirección puede usar el conector.
@@ -66,11 +75,13 @@ def _work_label(wid: str) -> str:
 @mcp.tool()
 def listar_fuentes() -> str:
     """Lista las obras disponibles con su abreviatura, número de unidades, edición de base y licencia."""
-    lines = ["| Abrev. | Obra | Unidades | Fuente | Edición (teiHeader) |", "|---|---|---|---|---|"]
+    lines = ["| Abrev. | Obra | Unidades | Tipo | Licencia | Fuente | Edición |", "|---|---|---|---|---|---|---|"]
+    kinds = {"tei": "texto crítico", "ocr": "OCR por páginas", "edh": "inscripciones"}
     for w in store.works():
         src = (w["source"] or "").replace("|", "/")[:160]
-        lines.append(f"| {w['abbr']} | {w['title']} | {w['n_nodes']} | {w['handle']} | {src} |")
-    lines.append("\nTextos: BIA – Bibliotheca Iuris Antiqui (IGSG-CNR), CLARIN-IT. Licencia CC BY-NC-SA 4.0.")
+        lic = (w["license"] or "").split(" (")[0]
+        lines.append(f"| {w['abbr']} | {w['title']} | {w['n_nodes']} | {kinds.get(w['kind'], '')} | {lic} "
+                     f"| {w['handle']} | {src} |")
     return "\n".join(lines)
 
 
@@ -79,7 +90,9 @@ def citar(referencia: str, obra: str | None = None, max_caracteres: int = MAX_CH
     """Devuelve el texto latino de un lugar de las fuentes.
 
     referencia: cita en notación romanística, p. ej. "D. 1.1.10 pr.", "D. 50,17,202",
-        "Gai. 1.8", "I. 2.1.1", "C. 4.44.2", "CTh. 9.1.1", "Nov. 118.1", "PS. 1.1.1".
+        "Gai. 1.8", "I. 2.1.1", "C. 4.44.2", "CTh. 9.1.1", "Nov. 118.1", "PS. 1.1.1",
+        "Nov. Val. 35", "Nov. Marc. 4", "CE. 305", "GdC 2.145" (tomo 2, página 145 del escaneo),
+        "Bruns 120" (página), "EDH HD022109" (inscripción).
         Si se cita un título o libro entero se devuelve todo su contenido (truncado a max_caracteres).
     obra: opcional, para forzar la obra si la abreviatura es ambigua (p. ej. "cth", "gai").
     """
@@ -92,7 +105,10 @@ def citar(referencia: str, obra: str | None = None, max_caracteres: int = MAX_CH
         if r["trail"]:
             head += f"\n_{r['trail']}_"
         parts.append(f"{head}\n\n{store.render(r, max_caracteres)}")
-    parts.append("\nFuente: BIA – Bibliotheca Iuris Antiqui (CNR), CC BY-NC-SA 4.0.")
+    for wid in dict.fromkeys(r["work_id"] for r in rows):
+        w = store.work(wid)
+        note = " Texto procedente de OCR: puede contener errores; compruébalo en la imagen." if w["kind"] == "ocr" else ""
+        parts.append(f"Fuente: {w['source'][:200]} — {w['handle']}. Licencia: {w['license']}.{note}")
     return "\n\n".join(parts)
 
 
@@ -102,6 +118,7 @@ def buscar(
     fuentes: list[str] | None = None,
     tipos: list[str] | None = None,
     limite: int = 20,
+    ambito: str | None = None,
 ) -> str:
     """Búsqueda de texto completo en latín (sin distinguir mayúsculas ni diacríticos).
 
@@ -113,12 +130,23 @@ def buscar(
         usuales (Ulp., Paul., Pomp., ed., Sab., resp.…) se traducen solas: "Ulp. 28 ad ed."
         encuentra «Ulpianus libro vicensimo octavo ad edictum».
     limite: número máximo de resultados (máx. 100).
+    ambito: "textos" (ediciones críticas), "ocr" (ediciones escaneadas, incl. la traducción
+        española GdC) o "inscripciones" (EDH). Por defecto, todo.
     """
     wids: list[str] | None = None
     if fuentes:
         wids = sorted({w for f in fuentes for w in store.resolve_work(f)})
         if not wids:
             return f"No reconozco ninguna de las fuentes {fuentes}. Usa listar_fuentes."
+    if ambito:
+        kind = {"textos": "tei", "texto": "tei", "ocr": "ocr", "traduccion": "ocr", "inscripciones": "edh",
+                "epigrafia": "edh", "edh": "edh"}.get(ambito.lower().strip())
+        if not kind:
+            return "ambito debe ser «textos», «ocr» o «inscripciones»."
+        pool = [w["id"] for w in store.works() if w["kind"] == kind]
+        wids = [w for w in (wids or pool) if w in pool]
+        if not wids:
+            return "Ninguna fuente coincide con ese filtro."
     rows = store.search(consulta, wids, tipos, max(1, min(limite, 100)))
     if not rows:
         return "Sin resultados. Prueba con prefijos (emptio* vendit*) o quitando filtros."
@@ -126,8 +154,12 @@ def buscar(
     for r in rows:
         frag = store.parent_fragment(r)
         insc = store.inscriptio(frag["rowid"]) if frag is not None and r["type"].lower() != "inscriptio" else ""
-        loc = f"{_work_label(r['work_id'])} {r['n']}"
-        out.append(f"- **{loc}**{' (' + insc + ')' if insc else ''}: {r['snip']}")
+        if not insc and r["type"] == "Inscripción":
+            insc = r["head"]
+        w = store.work(r["work_id"])
+        loc = r["n"] if w["kind"] != "tei" or r["n"][:1].isalpha() else f"{w['abbr']} {r['n']}"
+        url = f" [{r['url']}]" if r["url"] and r["type"] != "Inscripción" else ""
+        out.append(f"- **{loc}**{' (' + insc + ')' if insc else ''}: {r['snip']}{url}")
     return "\n".join(out)
 
 
@@ -143,8 +175,11 @@ def explorar(referencia: str) -> str:
         out = []
         for wid in wids:
             out.append(f"# {_work_label(wid)}")
-            for n in store.top(wid):
+            top = store.top(wid)
+            for n in top[:150]:
                 out.append(f"- {n['n']} {n['head'] or n['text'][:120]}".rstrip())
+            if len(top) > 150:
+                out.append(f"… y {len(top) - 150} más. Usa `buscar` con fuentes=[\"{wid}\"].")
         return "\n".join(out)
     rows, msg = store.find(referencia)
     if not rows:
@@ -155,9 +190,11 @@ def explorar(referencia: str) -> str:
         kids = store.children(r["rowid"])
         if not kids:
             out.append("(unidad sin subdivisiones; usa `citar`)")
-        for k in kids:
+        for k in kids[:200]:
             label = k["head"] or k["text"] or store.inscriptio(k["rowid"])
             out.append(f"- {k['n']} [{k['type']}] {label[:140]}")
+        if len(kids) > 200:
+            out.append(f"… y {len(kids) - 200} más.")
     return "\n".join(out)
 
 
@@ -171,6 +208,8 @@ ALLOWED_HOSTS = {
     "es.wikisource.org",
     "www.perseus.tufts.edu",
     "penelope.uchicago.edu",
+    "archive.org",
+    "edh.ub.uni-heidelberg.de",
 }
 
 

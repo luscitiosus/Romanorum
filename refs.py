@@ -44,6 +44,7 @@ def split_ref(ref: str) -> tuple[str, list[str]]:
     rest = toks[i:]
     # "pr" escrito como "principium"
     rest = ["pr" if t in ("princ", "principium") else t for t in rest]
+    rest = [(t.lstrip("0") or "0") if t.isdigit() else t for t in rest]  # HD000123 -> 123
     return "".join(prefix), rest
 
 
