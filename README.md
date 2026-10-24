@@ -66,5 +66,6 @@ claude.ai admite conectores sin autenticación. `MCP_SECRET` mete un valor aleat
 
 ## Licencias
 
+- Código: licencia MIT (véase `LICENSE`). Cubre solo el código de este repositorio, no los textos que descarga.
 - Textos: © BIA – Bibliotheca Iuris Antiqui (IGSG-CNR), CC BY-NC-SA 4.0. Uso no comercial, citando la fuente; las obras derivadas deben llevar la misma licencia.
 - Las páginas leídas con `leer_web` se rigen por los términos de cada sitio.
